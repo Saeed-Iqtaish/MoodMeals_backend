@@ -1,14 +1,16 @@
 import express from "express";
-import dotenv, { configDotenv } from 'dotenv';
 import dotenv from "dotenv";
 import pgclient from './db.js';
 import morgan from 'morgan';
+import cors from "cors";
+import communityRoutes from './routes/community.js';
+
 
 
 const server = express();
 dotenv.config();
 server.use(cors());
-server.use(morga('dev'));
+server.use(morgan('dev'));
 server.use(express.json());
 
 const PORT = process.env.PORT || 5000;
@@ -16,16 +18,15 @@ const PORT = process.env.PORT || 5000;
 //community routes
 server.use("/api/community", communityRoutes);
 
-
 // not found route
-app.use((req, res) => {
+server.use((req, res) => {
     res.json({ message: "🚫 Route not found" });
 })
 
 
 pgclient.connect()
     .then(() => {
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`Listening on PORT ${PORT}`);
 
         });

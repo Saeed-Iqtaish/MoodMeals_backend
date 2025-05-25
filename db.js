@@ -1,8 +1,11 @@
-import dotenv from 'dotenv';
 import pg from 'pg';
+import dotenv from 'dotenv';
+
 
 dotenv.config();
 
-const pgclient = new pg.Client(process.env.DATABASE_URL);
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-export default pgclient;
+export default pool;
