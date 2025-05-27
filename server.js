@@ -7,6 +7,7 @@ import communityRoutes from './routes/community.js';
 import favoritesRoutes from './routes/favorites.js';
 import notesRoutes from './routes/notes.js'
 import usersRoutes from './routes/users.js';
+import ratingsRoutes from './routes/ratings.js'
 import { simpleAuth } from './middleware/auth0.js';
 import { checkJwt, extractUser } from './middleware/auth0.js';
 
@@ -32,6 +33,9 @@ server.use("/api/users", checkJwt, extractUser, usersRoutes);
 
 //ratings routes
 server.use("/api/ratings", checkJwt, extractUser, ratingsRoutes);
+
+//ratings rouutes
+server.use("/api/ratings", ratingsRoutes);
 
 // not found route
 server.use((req, res) => {
