@@ -4,6 +4,19 @@ import multer from "multer";
 
 const router = express.Router();
 
+async function getUserIdFromAuth0(auth0Id) {
+    const userResult = await pgclient.query(
+        'SELECT id FROM "user" WHERE auth0_id = $1',
+        [auth0Id]
+    );
+    
+    if (userResult.rows.length === 0) {
+        throw new Error("User not found");
+    }
+    
+    return userResult.rows[0].id;
+}
+
 
 //get all community recipes
 router.get("/", async (req, res) => {
@@ -105,9 +118,13 @@ router.post("/", upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
 
     try {
-        const { title, created_by } = req.body;
+        const { title } = req.body;  // Remove created_by from body
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
+        
+        // Get user info from Auth0 token
+        const userId = await getUserIdFromAuth0(req.user.sub);
+        const created_by = req.user.name || req.user.email;
 
         const ingredients = JSON.parse(req.body.ingredients || "[]");
         const instructions = JSON.parse(req.body.instructions || "[]");
@@ -116,31 +133,34 @@ router.post("/", upload.single("image"), async (req, res) => {
 
         const recipeResult = await client.query(
             `INSERT INTO community_recipes 
-        (title, image_data, image_type, created_by, approved, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, false, NOW(), NOW())
-       RETURNING id`,
+            (title, image_data, image_type, created_by, approved, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, false, NOW(), NOW())
+            RETURNING id`,
             [title, imageData, imageType, created_by]
         );
 
         const recipeId = recipeResult.rows[0].id;
 
+        // Insert ingredients and instructions (same as before)
         for (const ingredient of ingredients) {
-            await client.query(
-                `INSERT INTO ingredients (recipe_id, ingredient)
-         VALUES ($1, $2)`,
-                [recipeId, ingredient]
-            );
+            if (ingredient.trim()) {
+                await client.query(
+                    `INSERT INTO ingredients (recipe_id, ingredient) VALUES ($1, $2)`,
+                    [recipeId, ingredient.trim()]
+                );
+            }
         }
 
         let stepNumber = 1;
         for (const step of instructions) {
-            await client.query(
-                `INSERT INTO instructions (recipe_id, step_number, instruction) VALUES ($1, $2, $3)`,
-                [recipeId, stepNumber, step]
-            );
-            stepNumber++;
+            if (step.trim()) {
+                await client.query(
+                    `INSERT INTO instructions (recipe_id, step_number, instruction) VALUES ($1, $2, $3)`,
+                    [recipeId, stepNumber, step.trim()]
+                );
+                stepNumber++;
+            }
         }
-
 
         await client.query("COMMIT");
 
