@@ -3,10 +3,24 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-// Get notes for a recipe
-router.get("/recipe/:recipeId/user/:userId", async (req, res) => {
+async function getUserIdFromAuth0(auth0Id) {
+    const userResult = await pgclient.query(
+        'SELECT id FROM "user" WHERE auth0_id = $1',
+        [auth0Id]
+    );
+    
+    if (userResult.rows.length === 0) {
+        throw new Error("User not found");
+    }
+    
+    return userResult.rows[0].id;
+}
+
+//get notes for a specific recipe
+router.get("/recipe/:recipeId", async (req, res) => {
     try {
-        const { recipeId, userId } = req.params;
+        const { recipeId } = req.params;
+        const userId = await getUserIdFromAuth0(req.user.sub);
         
         const notes = await pgclient.query(
             "SELECT * FROM notes WHERE recipe_id = $1 AND user_id = $2",
@@ -20,10 +34,11 @@ router.get("/recipe/:recipeId/user/:userId", async (req, res) => {
     }
 });
 
-// Add or update note
+//add or edit recipe notes
 router.post("/", async (req, res) => {
     try {
-        const { user_id, recipe_id, note } = req.body;
+        const { recipe_id, note } = req.body;
+        const userId = await getUserIdFromAuth0(req.user.sub);
 
         const result = await pgclient.query(
             `INSERT INTO notes (user_id, recipe_id, note) 
@@ -31,34 +46,13 @@ router.post("/", async (req, res) => {
              ON CONFLICT (user_id, recipe_id) 
              DO UPDATE SET note = $3
              RETURNING *`,
-            [user_id, recipe_id, note]
+            [userId, recipe_id, note]
         );
 
         res.json({ message: "Note saved", note: result.rows[0] });
     } catch (error) {
         console.error("Error saving note:", error);
         res.status(500).json({ error: "Failed to save note" });
-    }
-});
-
-// Delete note
-router.delete("/", async (req, res) => {
-    try {
-        const { user_id, recipe_id } = req.body;
-
-        const result = await pgclient.query(
-            "DELETE FROM notes WHERE user_id = $1 AND recipe_id = $2",
-            [user_id, recipe_id]
-        );
-
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "Note not found" });
-        }
-
-        res.json({ message: "Note deleted" });
-    } catch (error) {
-        console.error("Error deleting note:", error);
-        res.status(500).json({ error: "Failed to delete note" });
     }
 });
 

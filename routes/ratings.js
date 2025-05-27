@@ -3,7 +3,7 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-// Get ratings for a recipe
+//get ratings for a recipe
 router.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
@@ -24,12 +24,13 @@ router.get("/recipe/:recipeId", async (req, res) => {
     }
 });
 
-// Add or update rating
+
+//gdd or update rating
 router.post("/", async (req, res) => {
     try {
         const { user_id, recipe_id, rating } = req.body;
 
-        // Validate rating (1-5)
+        //validate rating (1-5)
         if (rating < 1 || rating > 5) {
             return res.status(400).json({ error: "Rating must be between 1 and 5" });
         }

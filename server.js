@@ -5,8 +5,11 @@ import morgan from 'morgan';
 import cors from "cors";
 import communityRoutes from './routes/community.js';
 import favoritesRoutes from './routes/favorites.js';
-import notesRoutes from './routes/notes.js';
+import notesRoutes from './routes/notes.js'
+import usersRoutes from './routes/users.js';
 import ratingsRoutes from './routes/ratings.js'
+import { simpleAuth } from './middleware/auth0.js';
+import { checkJwt, extractUser } from './middleware/auth0.js';
 
 const server = express();
 dotenv.config();
@@ -20,10 +23,16 @@ const PORT = process.env.PORT || 5000;
 server.use("/api/community", communityRoutes);
 
 //favorites routes
-server.use("/api/favorites", favoritesRoutes);
+server.use("/api/favorites", checkJwt, extractUser, favoritesRoutes);
 
 //notes routes
-server.use("/api/notes", notesRoutes);
+server.use("/api/notes", checkJwt, extractUser, notesRoutes);
+
+//users routes
+server.use("/api/users", checkJwt, extractUser, usersRoutes);
+
+//ratings routes
+server.use("/api/ratings", checkJwt, extractUser, ratingsRoutes);
 
 //ratings rouutes
 server.use("/api/ratings", ratingsRoutes);
