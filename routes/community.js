@@ -31,13 +31,11 @@ router.get("/:id", async (req, res) => {
             return res.status(404).json({ message: "Recipe not found" });
         }
 
-        // Get ingredients
         const ingredientsQuery = await pgclient.query(
             "SELECT ingredient FROM ingredients WHERE recipe_id = $1 ORDER BY id",
             [req.params.id]
         );
-
-        // Get instructions
+s
         const instructionsQuery = await pgclient.query(
             "SELECT step_number, instruction FROM instructions WHERE recipe_id = $1 ORDER BY step_number",
             [req.params.id]

@@ -1,49 +1,56 @@
-// routes/favorites.js
 import express from "express";
 import pgclient from "../db.js";
 
 const router = express.Router();
 
-// Get all favorites for a user
-router.get("/:userId", async (req, res) => {
+async function getUserIdFromAuth0(auth0Id) {
+    const userResult = await pgclient.query(
+        'SELECT id FROM "user" WHERE auth0_id = $1',
+        [auth0Id]
+    );
+    
+    if (userResult.rows.length === 0) {
+        throw new Error("User not found");
+    }
+    
+    return userResult.rows[0].id;
+}
+
+//get all favorites for authenticated user
+router.get("/", async (req, res) => {
     try {
+        const userId = await getUserIdFromAuth0(req.user.sub);
+        
         const favorites = await pgclient.query(
             "SELECT recipe_id FROM favorites WHERE user_id = $1",
-            [req.params.userId]
+            [userId]
         );
+        
         res.json(favorites.rows);
     } catch (error) {
-        console.error("Detailed error:", {
-            message: error.message,
-            stack: error.stack,
-            code: error.code
-        });
-        res.status(500).json({
-            error: "Internal server error",
-            details: error.message
-        });
+        console.error("Error fetching favorites:", error);
+        res.status(500).json({ error: "Failed to fetch favorites" });
     }
 });
 
-// Add a recipe to favorites
+//add a recipe to favorites (Auth0 version)
 router.post("/", async (req, res) => {
     try {
-        const { user_id, recipe_id } = req.body;
+        const { recipe_id } = req.body;
+        const userId = await getUserIdFromAuth0(req.user.sub);
 
-        // Check if already favorited
         const existing = await pgclient.query(
             "SELECT * FROM favorites WHERE user_id = $1 AND recipe_id = $2",
-            [user_id, recipe_id]
+            [userId, recipe_id]
         );
 
         if (existing.rows.length > 0) {
             return res.status(400).json({ error: "Recipe already in favorites" });
         }
 
-        // Add to favorites
         await pgclient.query(
             "INSERT INTO favorites (user_id, recipe_id) VALUES ($1, $2)",
-            [user_id, recipe_id]
+            [userId, recipe_id]
         );
 
         res.status(201).json({ message: "Recipe added to favorites" });
@@ -53,14 +60,15 @@ router.post("/", async (req, res) => {
     }
 });
 
-// Remove a recipe from favorites
+//remove a recipe from favorites (Auth0 version)
 router.delete("/", async (req, res) => {
     try {
-        const { user_id, recipe_id } = req.body;
+        const { recipe_id } = req.body; // Only need recipe_id from body
+        const userId = await getUserIdFromAuth0(req.user.sub); // Get user_id from token
 
         const result = await pgclient.query(
             "DELETE FROM favorites WHERE user_id = $1 AND recipe_id = $2",
-            [user_id, recipe_id]
+            [userId, recipe_id]
         );
 
         if (result.rowCount === 0) {
