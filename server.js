@@ -8,7 +8,6 @@ import favoritesRoutes from './routes/favorites.js';
 import notesRoutes from './routes/notes.js'
 import usersRoutes from './routes/users.js';
 import ratingsRoutes from './routes/ratings.js'
-import { simpleAuth } from './middleware/auth0.js';
 import { checkJwt, extractUser } from './middleware/auth0.js';
 
 const server = express();
