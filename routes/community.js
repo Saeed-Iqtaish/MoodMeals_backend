@@ -23,14 +23,30 @@ router.get("/", async (req, res) => {
     }
 });
 
-
-//get a specific recipe by ID
+//get a specific recipe by ID with ingredient and instructions
 router.get("/:id", async (req, res) => {
     try {
         const recipe = await pgclient.query("SELECT * from community_recipes WHERE id = $1", [req.params.id]);
         if (recipe.rows.length === 0) {
             return res.status(404).json({ message: "Recipe not found" });
         }
+
+        // Get ingredients
+        const ingredientsQuery = await pgclient.query(
+            "SELECT ingredient FROM ingredients WHERE recipe_id = $1 ORDER BY id",
+            [req.params.id]
+        );
+
+        // Get instructions
+        const instructionsQuery = await pgclient.query(
+            "SELECT step_number, instruction FROM instructions WHERE recipe_id = $1 ORDER BY step_number",
+            [req.params.id]
+        );
+
+        recipe.ingredients = ingredientsQuery.rows;
+        recipe.instructions = instructionsQuery.rows;
+
+        res.json(recipe);
     } catch (error) {
         console.error("Detailed error:", {
             message: error.message,
@@ -43,7 +59,6 @@ router.get("/:id", async (req, res) => {
         });
     }
 });
-
 
 //get specific recipe image
 router.get("/:id/image", async (req, res) => {
@@ -71,9 +86,21 @@ router.get("/:id/image", async (req, res) => {
 });
 
 
-//set up Multer to store files in memory fo image uploads for creating community recipes
+//set up Multer to store files in memory for image uploads for creating community recipes
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ 
+    storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'));
+        }
+    }
+});
 
 //create a community recipe
 router.post("/", upload.single("image"), async (req, res) => {
@@ -195,7 +222,6 @@ router.put("/:id", upload.single("image"), async (req, res) => {
   }
 });
 
-
 //delete a community recipe
 router.delete("/:id", async (req, res) => {
   try {
@@ -225,6 +251,5 @@ router.delete("/:id", async (req, res) => {
     });
   }
 });
-
 
 export default router;
