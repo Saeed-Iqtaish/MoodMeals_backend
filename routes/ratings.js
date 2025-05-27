@@ -1,4 +1,3 @@
-// routes/ratings.js - Updated for Auth0
 import express from "express";
 import pgclient from "../db.js";
 
