@@ -1,7 +1,21 @@
+// routes/ratings.js - Updated for Auth0
 import express from "express";
 import pgclient from "../db.js";
 
 const router = express.Router();
+
+async function getUserIdFromAuth0(auth0Id) {
+    const userResult = await pgclient.query(
+        'SELECT id FROM "user" WHERE auth0_id = $1',
+        [auth0Id]
+    );
+    
+    if (userResult.rows.length === 0) {
+        throw new Error("User not found");
+    }
+    
+    return userResult.rows[0].id;
+}
 
 //get ratings for a recipe
 router.get("/recipe/:recipeId", async (req, res) => {
@@ -24,11 +38,11 @@ router.get("/recipe/:recipeId", async (req, res) => {
     }
 });
 
-
-//gdd or update rating
+//add or update rating
 router.post("/", async (req, res) => {
     try {
-        const { user_id, recipe_id, rating } = req.body;
+        const { recipe_id, rating } = req.body;
+        const userId = await getUserIdFromAuth0(req.user.sub);
 
         //validate rating (1-5)
         if (rating < 1 || rating > 5) {
@@ -41,7 +55,7 @@ router.post("/", async (req, res) => {
              ON CONFLICT (user_id, recipe_id) 
              DO UPDATE SET rating = $3
              RETURNING *`,
-            [user_id, recipe_id, rating]
+            [userId, recipe_id, rating]
         );
 
         res.json({ message: "Rating saved", rating: result.rows[0] });
