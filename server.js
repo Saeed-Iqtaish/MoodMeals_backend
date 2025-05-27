@@ -5,7 +5,8 @@ import morgan from 'morgan';
 import cors from "cors";
 import communityRoutes from './routes/community.js';
 import favoritesRoutes from './routes/favorites.js';
-import notesRoutes from './routes/notes.js'
+import notesRoutes from './routes/notes.js';
+import ratingsRoutes from './routes/ratings.js'
 
 const server = express();
 dotenv.config();
@@ -23,6 +24,9 @@ server.use("/api/favorites", favoritesRoutes);
 
 //notes routes
 server.use("/api/notes", notesRoutes);
+
+//ratings rouutes
+server.use("/api/ratings", ratingsRoutes);
 
 // not found route
 server.use((req, res) => {
