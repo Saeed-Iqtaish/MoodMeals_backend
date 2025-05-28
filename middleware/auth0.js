@@ -1,45 +1,123 @@
-import jwt from 'express-jwt';
-import jwks from 'jwks-client';
+import jwt from 'jsonwebtoken';
+import jwksClient from 'jwks-client';
 
-const client = jwks({
+// Create JWKS client
+const client = jwksClient({
   jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
-  requestHeaders: {}, 
+  requestHeaders: {},
   timeout: 30000,
   cache: true,
   rateLimit: true,
-  jwksRequestsPerMinute: 5,
-  jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`
+  jwksRequestsPerMinute: 5
 });
 
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      console.error('Error getting signing key:', err);
-      return callback(err);
+// Function to get signing key
+const getKey = (header) => {
+  return new Promise((resolve, reject) => {
+    if (!header || !header.kid) {
+      return reject(new Error('JWT header missing kid'));
     }
-    const signingKey = key.publicKey || key.rsaPublicKey;
-    callback(null, signingKey);
+
+    client.getSigningKey(header.kid, (err, key) => {
+      if (err) {
+        console.error('Error getting signing key:', err);
+        return reject(err);
+      }
+      
+      // The key can be either publicKey or rsaPublicKey depending on the version
+      const signingKey = key.publicKey || key.rsaPublicKey;
+      
+      if (!signingKey) {
+        return reject(new Error('Unable to find appropriate signing key'));
+      }
+      
+      resolve(signingKey);
+    });
   });
-}
+};
 
-export const checkJwt = jwt({
-  secret: getKey,
-  audience: process.env.AUTH0_AUDIENCE,
-  issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-  algorithms: ['RS256'],
-  getToken: function fromHeaderOrQuerystring(req) {
-    if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
-      return req.headers.authorization.split(' ')[1];
-    } else if (req.query && req.query.token) {
-      return req.query.token;
-    }
-    return null;
+// Extract token from request
+const getTokenFromRequest = (req) => {
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
   }
-});
+  
+  if (req.query && req.query.token) {
+    return req.query.token;
+  }
+  
+  return null;
+};
 
+// Main JWT verification middleware
+export const checkJwt = async (req, res, next) => {
+  try {
+    const token = getTokenFromRequest(req);
+    
+    if (!token) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'No token provided'
+      });
+    }
+
+    // Decode token header to get key ID
+    const decoded = jwt.decode(token, { complete: true });
+    
+    if (!decoded || !decoded.header) {
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        message: 'Token could not be decoded'
+      });
+    }
+
+    // Get signing key
+    const signingKey = await getKey(decoded.header);
+
+    // Verify token
+    const verified = jwt.verify(token, signingKey, {
+      audience: process.env.AUTH0_AUDIENCE,
+      issuer: `https://${process.env.AUTH0_DOMAIN}/`,
+      algorithms: ['RS256']
+    });
+
+    // Add user info to request
+    req.user = verified;
+    req.auth = verified; // For compatibility
+    
+    console.log('JWT verified successfully for user:', verified.sub);
+    next();
+
+  } catch (error) {
+    console.error('JWT verification failed:', error.message);
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Token expired',
+        message: 'Please log in again'
+      });
+    }
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        message: 'Token verification failed'
+      });
+    }
+    
+    return res.status(401).json({ 
+      error: 'Authentication failed',
+      message: 'Unable to verify token'
+    });
+  }
+};
+
+// Extract user middleware (for logging)
 export const extractUser = (req, res, next) => {
   if (req.user) {
-    console.log('Authenticated user from Auth0:', {
+    console.log('Authenticated user:', {
       sub: req.user.sub,
       email: req.user.email,
       name: req.user.name

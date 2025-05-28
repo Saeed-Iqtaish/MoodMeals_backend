@@ -6,10 +6,28 @@ const router = express.Router();
 router.post("/profile", async (req, res) => {
     try {
         const auth0Id = req.user.sub;
-        const email = req.user.email;
-        const username = req.user.name || req.user.nickname || email.split('@')[0];
         
-        console.log('Creating/getting profile for Auth0 user:', { auth0Id, email, username });
+        // Get additional user info from different possible sources
+        const email = req.user.email || req.user['https://api.moodmeals.com/email'] || null;
+        const name = req.user.name || req.user['https://api.moodmeals.com/name'] || req.user.nickname || null;
+        
+        // Generate username from different sources
+        let username;
+        if (name) {
+            username = name;
+        } else if (email) {
+            username = email.split('@')[0];
+        } else {
+            // Use the Auth0 ID as fallback
+            username = `user_${auth0Id.split('|')[1] || auth0Id}`;
+        }
+        
+        console.log('Creating/getting profile for Auth0 user:', { 
+            auth0Id, 
+            email: email || 'not provided', 
+            username,
+            rawUser: req.user 
+        });
         
         const existingUser = await pgclient.query(
             'SELECT * FROM "user" WHERE auth0_id = $1',
