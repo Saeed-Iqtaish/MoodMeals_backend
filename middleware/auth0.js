@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-client';
+import pgclient from '../db.js';
 
 const client = jwksClient({
   jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
@@ -114,4 +115,26 @@ export const extractUser = (req, res, next) => {
     });
   }
   next();
+};
+
+export const requireAdmin = async (req, res, next) => {
+  try {
+    const userResult = await pgclient.query(
+      'SELECT is_admin FROM "user" WHERE auth0_id = $1',
+      [req.user.sub]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!userResult.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Admin check error:', error);
+    res.status(500).json({ error: 'Authorization check failed' });
+  }
 };

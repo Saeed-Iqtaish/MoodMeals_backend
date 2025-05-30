@@ -81,27 +81,30 @@ router.get("/me", async (req, res) => {
 });
 
 //update current user profile
-router.put("/me", async (req, res) => {
+router.get("/me", async (req, res) => {
     try {
         const auth0Id = req.user.sub;
-        const { username } = req.body;
-
-        const result = await pgclient.query(
-            `UPDATE "user" SET username = $1 WHERE auth0_id = $2 RETURNING *`,
-            [username, auth0Id]
+        
+        const user = await pgclient.query(
+            'SELECT id, username, email, auth0_id, is_admin FROM "user" WHERE auth0_id = $1',
+            [auth0Id]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "User not found" });
+        if (user.rows.length === 0) {
+            return res.status(404).json({ error: "User profile not found" });
         }
 
+        const userData = user.rows[0];
         res.json({
-            message: "Profile updated successfully",
-            user: result.rows[0]
+            id: userData.id,
+            username: userData.username,
+            email: userData.email,
+            auth0Id: userData.auth0_id,
+            isAdmin: userData.is_admin
         });
     } catch (error) {
-        console.error("Error updating user profile:", error);
-        res.status(500).json({ error: "Failed to update user profile" });
+        console.error("Error fetching user profile:", error);
+        res.status(500).json({ error: "Failed to fetch user profile" });
     }
 });
 

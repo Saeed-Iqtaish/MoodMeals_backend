@@ -22,12 +22,11 @@ async function getUserIdFromAuth0(auth0Id) {
     return userResult.rows[0].id;
 }
 
-// Set up Multer for image uploads
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        fileSize: 5 * 1024 * 1024
     },
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) {
@@ -38,9 +37,7 @@ const upload = multer({
     }
 });
 
-// PUBLIC ROUTES - No authentication required
-
-// Get all approved community recipes (PUBLIC)
+//get all approved community recipes
 router.get("/", async (req, res) => {
     try {
         console.log('📖 GET /api/community - Public route accessed');
@@ -61,7 +58,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-// Get a specific recipe by ID with ingredients and instructions (PUBLIC)
+//get a specific recipe
 router.get("/:id", async (req, res) => {
     try {
         const recipeQuery = await pgclient.query(
@@ -101,7 +98,7 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-// Get specific recipe image (PUBLIC)
+//get specific recipe image
 router.get("/:id/image", async (req, res) => {
     try {
         const result = await pgclient.query(
@@ -133,12 +130,11 @@ router.get("/:id/image", async (req, res) => {
     }
 });
 
-// Create a community recipe (PROTECTED)
+//create a community recipe
 router.post("/", (req, res, next) => {
     console.log('🔒 POST /api/community - Protected route accessed');
     console.log('🔍 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
     
-    // Apply authentication
     checkJwt(req, res, (err) => {
         if (err) {
             console.log('❌ JWT verification failed:', err.message);
@@ -148,17 +144,17 @@ router.post("/", (req, res, next) => {
             });
         }
         
-        console.log('✅ JWT verified for recipe creation');
+        console.log('JWT verified for recipe creation');
         extractUser(req, res, (err) => {
             if (err) {
-                console.log('❌ User extraction failed:', err.message);
+                console.log('User extraction failed:', err.message);
                 return res.status(500).json({
                     error: "User extraction failed",
                     message: err.message
                 });
             }
             
-            console.log('✅ User extracted for recipe creation:', req.user?.sub);
+            console.log('User extracted for recipe creation:', req.user?.sub);
             next();
         });
     });
@@ -174,10 +170,9 @@ router.post("/", (req, res, next) => {
         console.log('📝 Recipe title:', title);
         console.log('🖼️ Has image:', !!imageData);
         
-        // Get user ID from database (this is the integer we need)
         const userId = await getUserIdFromAuth0(req.user.sub);
         
-        console.log('👤 User ID from DB:', userId, 'Type:', typeof userId);
+        console.log('User ID from DB:', userId, 'Type:', typeof userId);
 
         if (!title || !title.trim()) {
             return res.status(400).json({ error: "Title is required" });
@@ -195,20 +190,19 @@ router.post("/", (req, res, next) => {
 
         await client.query("BEGIN");
 
-        // Insert with the user ID (integer), not the username (string)
         const recipeResult = await client.query(
             `INSERT INTO community_recipes 
             (title, image_data, image_type, created_by, approved, created_at, updated_at)
             VALUES ($1, $2, $3, $4, false, NOW(), NOW())
             RETURNING id`,
-            [title.trim(), imageData, imageType, userId] // Use userId (integer)
+            [title.trim(), imageData, imageType, userId]
         );
 
         const recipeId = recipeResult.rows[0].id;
 
-        console.log('✅ Recipe inserted with ID:', recipeId);
+        console.log('Recipe inserted with ID:', recipeId);
 
-        // Insert ingredients
+        //insert ingredients
         for (const ingredient of ingredients) {
             if (ingredient && ingredient.trim()) {
                 await client.query(
@@ -218,7 +212,7 @@ router.post("/", (req, res, next) => {
             }
         }
 
-        // Insert instructions
+        //insert instructions
         let stepNumber = 1;
         for (const step of instructions) {
             if (step && step.trim()) {
@@ -232,7 +226,7 @@ router.post("/", (req, res, next) => {
 
         await client.query("COMMIT");
 
-        console.log(`✅ Recipe created successfully with ID: ${recipeId}`);
+        console.log(`Recipe created successfully with ID: ${recipeId}`);
 
         res.status(201).json({
             message: "Recipe created successfully and pending approval",
@@ -241,8 +235,8 @@ router.post("/", (req, res, next) => {
 
     } catch (err) {
         await client.query("ROLLBACK");
-        console.error("❌ Error creating recipe:", err);
-        console.error("❌ Error details:", {
+        console.error("Error creating recipe:", err);
+        console.error("Error details:", {
             message: err.message,
             code: err.code,
             detail: err.detail,
@@ -257,7 +251,7 @@ router.post("/", (req, res, next) => {
     }
 });
 
-// Update a community recipe (PROTECTED)
+//update a community recipe
 router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
     try {
@@ -269,7 +263,6 @@ router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, re
 
         await client.query("BEGIN");
 
-        // Only update image if new one is provided
         if (imageData) {
             await client.query(
                 `UPDATE community_recipes SET title = $1, image_data = $2, image_type = $3, updated_at = NOW() WHERE id = $4`,
@@ -320,7 +313,7 @@ router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, re
     }
 });
 
-// Delete a community recipe (PROTECTED)
+//delete a community recipe
 router.delete("/:id", checkJwt, extractUser, async (req, res) => {
     try {
         const recipe = await pgclient.query(
@@ -343,6 +336,50 @@ router.delete("/:id", checkJwt, extractUser, async (req, res) => {
             error: "Failed to delete recipe",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
+    }
+});
+
+//get all pending recipes (admin only)
+router.get("/admin/pending", checkJwt, extractUser, requireAdmin, async (req, res) => {
+    try {
+        const recipes = await pgclient.query(
+            `SELECT cr.*, u.username as created_by_username 
+             FROM community_recipes cr 
+             LEFT JOIN "user" u ON cr.created_by = u.id 
+             WHERE cr.approved = false 
+             ORDER BY cr.created_at ASC`
+        );
+        res.json(recipes.rows);
+    } catch (error) {
+        console.error("Error fetching pending recipes:", error);
+        res.status(500).json({ error: "Failed to fetch pending recipes" });
+    }
+});
+
+//approve/reject recipe (admin only)
+router.patch("/:id/approval", checkJwt, extractUser, requireAdmin, async (req, res) => {
+    try {
+        const { approved } = req.body;
+        
+        const result = await pgclient.query(
+            `UPDATE community_recipes 
+             SET approved = $1, updated_at = NOW() 
+             WHERE id = $2 
+             RETURNING *`,
+            [approved, req.params.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Recipe not found" });
+        }
+
+        res.json({
+            message: approved ? "Recipe approved" : "Recipe rejected",
+            recipe: result.rows[0]
+        });
+    } catch (error) {
+        console.error("Error updating recipe approval:", error);
+        res.status(500).json({ error: "Failed to update recipe approval" });
     }
 });
 
