@@ -45,7 +45,11 @@ router.get("/", async (req, res) => {
     try {
         console.log('📖 GET /api/community - Public route accessed');
         const recipes = await pgclient.query(
-            "SELECT * FROM community_recipes WHERE approved = true ORDER BY created_at DESC"
+            `SELECT cr.*, u.username as created_by_username 
+             FROM community_recipes cr 
+             LEFT JOIN "user" u ON cr.created_by = u.id 
+             WHERE cr.approved = true 
+             ORDER BY cr.created_at DESC`
         );
         res.json(recipes.rows);
     } catch (error) {
@@ -61,7 +65,10 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
     try {
         const recipeQuery = await pgclient.query(
-            "SELECT * FROM community_recipes WHERE id = $1 AND approved = true", 
+            `SELECT cr.*, u.username as created_by_username 
+             FROM community_recipes cr 
+             LEFT JOIN "user" u ON cr.created_by = u.id 
+             WHERE cr.id = $1 AND cr.approved = true`, 
             [req.params.id]
         );
         
@@ -167,12 +174,10 @@ router.post("/", (req, res, next) => {
         console.log('📝 Recipe title:', title);
         console.log('🖼️ Has image:', !!imageData);
         
-        // Get user info from Auth0 token
+        // Get user ID from database (this is the integer we need)
         const userId = await getUserIdFromAuth0(req.user.sub);
-        const created_by = req.user.name || req.user.email || `user_${req.user.sub.split('|')[1] || req.user.sub}`;
-
+        
         console.log('👤 User ID from DB:', userId, 'Type:', typeof userId);
-        console.log('📝 Created by name:', created_by, 'Type:', typeof created_by);
 
         if (!title || !title.trim()) {
             return res.status(400).json({ error: "Title is required" });
@@ -190,23 +195,13 @@ router.post("/", (req, res, next) => {
 
         await client.query("BEGIN");
 
-        // First, let's check the table structure
-        const tableInfo = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'community_recipes' 
-            ORDER BY ordinal_position
-        `);
-        
-        console.log('🗄️ Table structure:', tableInfo.rows);
-
-        // Try the insert with just the string created_by field
+        // Insert with the user ID (integer), not the username (string)
         const recipeResult = await client.query(
             `INSERT INTO community_recipes 
             (title, image_data, image_type, created_by, approved, created_at, updated_at)
             VALUES ($1, $2, $3, $4, false, NOW(), NOW())
             RETURNING id`,
-            [title.trim(), imageData, imageType, created_by]
+            [title.trim(), imageData, imageType, userId] // Use userId (integer)
         );
 
         const recipeId = recipeResult.rows[0].id;

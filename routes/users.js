@@ -7,18 +7,15 @@ router.post("/profile", async (req, res) => {
     try {
         const auth0Id = req.user.sub;
         
-        // Get additional user info from different possible sources
         const email = req.user.email || req.user['https://api.moodmeals.com/email'] || null;
         const name = req.user.name || req.user['https://api.moodmeals.com/name'] || req.user.nickname || null;
         
-        // Generate username from different sources
         let username;
         if (name) {
             username = name;
         } else if (email) {
             username = email.split('@')[0];
         } else {
-            // Use the Auth0 ID as fallback
             username = `user_${auth0Id.split('|')[1] || auth0Id}`;
         }
         

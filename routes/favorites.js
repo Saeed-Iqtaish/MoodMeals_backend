@@ -60,11 +60,11 @@ router.post("/", async (req, res) => {
     }
 });
 
-//remove a recipe from favorites (Auth0 version)
+//remove a recipe from favorites
 router.delete("/", async (req, res) => {
     try {
-        const { recipe_id } = req.body; // Only need recipe_id from body
-        const userId = await getUserIdFromAuth0(req.user.sub); // Get user_id from token
+        const { recipe_id } = req.body;
+        const userId = await getUserIdFromAuth0(req.user.sub);
 
         const result = await pgclient.query(
             "DELETE FROM favorites WHERE user_id = $1 AND recipe_id = $2",

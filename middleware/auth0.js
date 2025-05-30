@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-client';
 
-// Create JWKS client
 const client = jwksClient({
   jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
   requestHeaders: {},
@@ -11,7 +10,6 @@ const client = jwksClient({
   jwksRequestsPerMinute: 5
 });
 
-// Function to get signing key
 const getKey = (header) => {
   return new Promise((resolve, reject) => {
     if (!header || !header.kid) {
@@ -24,7 +22,6 @@ const getKey = (header) => {
         return reject(err);
       }
       
-      // The key can be either publicKey or rsaPublicKey depending on the version
       const signingKey = key.publicKey || key.rsaPublicKey;
       
       if (!signingKey) {
@@ -36,7 +33,6 @@ const getKey = (header) => {
   });
 };
 
-// Extract token from request
 const getTokenFromRequest = (req) => {
   const authHeader = req.headers.authorization;
   
@@ -51,7 +47,6 @@ const getTokenFromRequest = (req) => {
   return null;
 };
 
-// Main JWT verification middleware
 export const checkJwt = async (req, res, next) => {
   try {
     const token = getTokenFromRequest(req);
@@ -63,7 +58,6 @@ export const checkJwt = async (req, res, next) => {
       });
     }
 
-    // Decode token header to get key ID
     const decoded = jwt.decode(token, { complete: true });
     
     if (!decoded || !decoded.header) {
@@ -73,19 +67,16 @@ export const checkJwt = async (req, res, next) => {
       });
     }
 
-    // Get signing key
     const signingKey = await getKey(decoded.header);
 
-    // Verify token
     const verified = jwt.verify(token, signingKey, {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,
       algorithms: ['RS256']
     });
 
-    // Add user info to request
     req.user = verified;
-    req.auth = verified; // For compatibility
+    req.auth = verified;
     
     console.log('JWT verified successfully for user:', verified.sub);
     next();
@@ -114,7 +105,6 @@ export const checkJwt = async (req, res, next) => {
   }
 };
 
-// Extract user middleware (for logging)
 export const extractUser = (req, res, next) => {
   if (req.user) {
     console.log('Authenticated user:', {

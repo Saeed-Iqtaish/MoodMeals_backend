@@ -43,7 +43,6 @@ router.post("/", async (req, res) => {
         const { recipe_id, rating } = req.body;
         const userId = await getUserIdFromAuth0(req.user.sub);
 
-        //validate rating (1-5)
         if (rating < 1 || rating > 5) {
             return res.status(400).json({ error: "Rating must be between 1 and 5" });
         }
