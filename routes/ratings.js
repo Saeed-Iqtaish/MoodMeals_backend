@@ -1,10 +1,10 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const ratingsRouter = express.Router();
+const router = express.Router();
 
 //get ratings for a recipe
-ratingsRouter.get("/recipe/:recipeId", async (req, res) => {
+router.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
         
@@ -25,7 +25,7 @@ ratingsRouter.get("/recipe/:recipeId", async (req, res) => {
 });
 
 //add or update rating
-ratingsRouter.post("/", async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const { recipe_id, rating } = req.body;
         const userId = req.user.id;
@@ -50,4 +50,4 @@ ratingsRouter.post("/", async (req, res) => {
     }
 });
 
-export { ratingsRouter };
+export default router;

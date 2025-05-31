@@ -1,10 +1,10 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const notesRouter = express.Router();
+const router = express.Router();
 
 //get notes for a specific recipe
-notesRouter.get("/recipe/:recipeId", async (req, res) => {
+router.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
         const userId = req.user.id;
@@ -22,7 +22,7 @@ notesRouter.get("/recipe/:recipeId", async (req, res) => {
 });
 
 //add or edit recipe notes
-notesRouter.post("/", async (req, res) => {
+router.post("/", async (req, res) => {
     try {
         const { recipe_id, note } = req.body;
         const userId = req.user.id;
@@ -43,4 +43,4 @@ notesRouter.post("/", async (req, res) => {
     }
 });
 
-export { notesRouter };
+export default router;

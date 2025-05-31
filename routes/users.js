@@ -1,10 +1,10 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const usersRouter = express.Router();
+const router = express.Router();
 
 //get current user profile
-usersRouter.get("/me", async (req, res) => {
+router.get("/me", async (req, res) => {
     try {
         const user = req.user;
 
@@ -21,7 +21,7 @@ usersRouter.get("/me", async (req, res) => {
 });
 
 //update current user profile
-usersRouter.put("/me", async (req, res) => {
+router.put("/me", async (req, res) => {
     try {
         const { username, email } = req.body;
         const userId = req.user.id;
@@ -50,7 +50,7 @@ usersRouter.put("/me", async (req, res) => {
 });
 
 //admin route - get all users
-usersRouter.get("/", async (req, res) => {
+router.get("/", async (req, res) => {
     try {
         // Check if user is admin
         if (!req.user.is_admin) {
@@ -65,4 +65,4 @@ usersRouter.get("/", async (req, res) => {
     }
 });
 
-export { usersRouter };
+export default router;
