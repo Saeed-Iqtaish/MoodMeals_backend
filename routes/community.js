@@ -118,18 +118,29 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
     const client = await pgclient.connect();
 
     try {
-        const { title } = req.body;
+        const { title, prep_time, servings } = req.body;
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
         
         console.log('🍳 Creating recipe with user:', req.user.id);
         console.log('📝 Recipe title:', title);
+        console.log('⏱️ Prep time:', prep_time);
+        console.log('🍽️ Servings:', servings);
         console.log('🖼️ Has image:', !!imageData);
         
         const userId = req.user.id;
 
+        // Validation
         if (!title || !title.trim()) {
             return res.status(400).json({ error: "Title is required" });
+        }
+
+        if (!prep_time || prep_time <= 0) {
+            return res.status(400).json({ error: "Valid prep time is required" });
+        }
+
+        if (!servings || servings <= 0) {
+            return res.status(400).json({ error: "Valid number of servings is required" });
         }
 
         const ingredients = JSON.parse(req.body.ingredients || "[]");
@@ -146,10 +157,10 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 
         const recipeResult = await client.query(
             `INSERT INTO community_recipes 
-            (title, image_data, image_type, created_by, approved, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, false, NOW(), NOW())
+            (title, prep_time, servings, image_data, image_type, created_by, approved, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
             RETURNING id`,
-            [title.trim(), imageData, imageType, userId]
+            [title.trim(), parseInt(prep_time), parseInt(servings), imageData, imageType, userId]
         );
 
         const recipeId = recipeResult.rows[0].id;
@@ -209,7 +220,7 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
     try {
-        const { title } = req.body;
+        const { title, prep_time, servings } = req.body;
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
         const ingredients = JSON.parse(req.body.ingredients || "[]");
@@ -219,13 +230,17 @@ router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, re
 
         if (imageData) {
             await client.query(
-                `UPDATE community_recipes SET title = $1, image_data = $2, image_type = $3, updated_at = NOW() WHERE id = $4`,
-                [title, imageData, imageType, req.params.id]
+                `UPDATE community_recipes 
+                 SET title = $1, prep_time = $2, servings = $3, image_data = $4, image_type = $5, updated_at = NOW() 
+                 WHERE id = $6`,
+                [title, parseInt(prep_time), parseInt(servings), imageData, imageType, req.params.id]
             );
         } else {
             await client.query(
-                `UPDATE community_recipes SET title = $1, updated_at = NOW() WHERE id = $2`,
-                [title, req.params.id]
+                `UPDATE community_recipes 
+                 SET title = $1, prep_time = $2, servings = $3, updated_at = NOW() 
+                 WHERE id = $4`,
+                [title, parseInt(prep_time), parseInt(servings), req.params.id]
             );
         }
 
