@@ -1,26 +1,13 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const router = express.Router();
-
-async function getUserIdFromAuth0(auth0Id) {
-    const userResult = await pgclient.query(
-        'SELECT id FROM "user" WHERE auth0_id = $1',
-        [auth0Id]
-    );
-    
-    if (userResult.rows.length === 0) {
-        throw new Error("User not found");
-    }
-    
-    return userResult.rows[0].id;
-}
+const notesRouter = express.Router();
 
 //get notes for a specific recipe
-router.get("/recipe/:recipeId", async (req, res) => {
+notesRouter.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
         
         const notes = await pgclient.query(
             "SELECT * FROM notes WHERE recipe_id = $1 AND user_id = $2",
@@ -35,10 +22,10 @@ router.get("/recipe/:recipeId", async (req, res) => {
 });
 
 //add or edit recipe notes
-router.post("/", async (req, res) => {
+notesRouter.post("/", async (req, res) => {
     try {
         const { recipe_id, note } = req.body;
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
 
         const result = await pgclient.query(
             `INSERT INTO notes (user_id, recipe_id, note) 
@@ -56,4 +43,4 @@ router.post("/", async (req, res) => {
     }
 });
 
-export default router;
+export { notesRouter };

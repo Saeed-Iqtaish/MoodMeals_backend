@@ -1,39 +1,28 @@
 import jwt from 'jsonwebtoken';
-import jwksClient from 'jwks-client';
+import bcrypt from 'bcryptjs';
 import pgclient from '../db.js';
 
-const client = jwksClient({
-  jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
-  requestHeaders: {},
-  timeout: 30000,
-  cache: true,
-  rateLimit: true,
-  jwksRequestsPerMinute: 5
-});
-
-const getKey = (header) => {
-  return new Promise((resolve, reject) => {
-    if (!header || !header.kid) {
-      return reject(new Error('JWT header missing kid'));
-    }
-
-    client.getSigningKey(header.kid, (err, key) => {
-      if (err) {
-        console.error('Error getting signing key:', err);
-        return reject(err);
-      }
-      
-      const signingKey = key.publicKey || key.rsaPublicKey;
-      
-      if (!signingKey) {
-        return reject(new Error('Unable to find appropriate signing key'));
-      }
-      
-      resolve(signingKey);
-    });
-  });
+// Generate JWT token
+export const generateToken = (userId) => {
+  return jwt.sign(
+    { userId },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '7d' }
+  );
 };
 
+// Hash password
+export const hashPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+// Compare password
+export const comparePassword = async (password, hashedPassword) => {
+  return bcrypt.compare(password, hashedPassword);
+};
+
+// Extract token from request
 const getTokenFromRequest = (req) => {
   const authHeader = req.headers.authorization;
   
@@ -41,13 +30,10 @@ const getTokenFromRequest = (req) => {
     return authHeader.substring(7);
   }
   
-  if (req.query && req.query.token) {
-    return req.query.token;
-  }
-  
   return null;
 };
 
+// Check JWT middleware
 export const checkJwt = async (req, res, next) => {
   try {
     const token = getTokenFromRequest(req);
@@ -59,27 +45,22 @@ export const checkJwt = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.decode(token, { complete: true });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     
-    if (!decoded || !decoded.header) {
+    // Get user from database
+    const userResult = await pgclient.query(
+      'SELECT id, username, email, is_admin FROM "user" WHERE id = $1',
+      [decoded.userId]
+    );
+    
+    if (userResult.rows.length === 0) {
       return res.status(401).json({ 
         error: 'Invalid token',
-        message: 'Token could not be decoded'
+        message: 'User not found'
       });
     }
 
-    const signingKey = await getKey(decoded.header);
-
-    const verified = jwt.verify(token, signingKey, {
-      audience: process.env.AUTH0_AUDIENCE,
-      issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-      algorithms: ['RS256']
-    });
-
-    req.user = verified;
-    req.auth = verified;
-    
-    console.log('JWT verified successfully for user:', verified.sub);
+    req.user = userResult.rows[0];
     next();
 
   } catch (error) {
@@ -106,29 +87,23 @@ export const checkJwt = async (req, res, next) => {
   }
 };
 
+// Extract user info (for logging)
 export const extractUser = (req, res, next) => {
   if (req.user) {
     console.log('Authenticated user:', {
-      sub: req.user.sub,
+      id: req.user.id,
       email: req.user.email,
-      name: req.user.name
+      username: req.user.username,
+      isAdmin: req.user.is_admin
     });
   }
   next();
 };
 
+// Require admin middleware
 export const requireAdmin = async (req, res, next) => {
   try {
-    const userResult = await pgclient.query(
-      'SELECT is_admin FROM "user" WHERE auth0_id = $1',
-      [req.user.sub]
-    );
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    if (!userResult.rows[0].is_admin) {
+    if (!req.user.is_admin) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     

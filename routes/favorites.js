@@ -3,23 +3,10 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-async function getUserIdFromAuth0(auth0Id) {
-    const userResult = await pgclient.query(
-        'SELECT id FROM "user" WHERE auth0_id = $1',
-        [auth0Id]
-    );
-    
-    if (userResult.rows.length === 0) {
-        throw new Error("User not found");
-    }
-    
-    return userResult.rows[0].id;
-}
-
 //get all favorites for authenticated user
 router.get("/", async (req, res) => {
     try {
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
         
         const favorites = await pgclient.query(
             "SELECT recipe_id FROM favorites WHERE user_id = $1",
@@ -33,11 +20,11 @@ router.get("/", async (req, res) => {
     }
 });
 
-//add a recipe to favorites (Auth0 version)
+//add a recipe to favorites
 router.post("/", async (req, res) => {
     try {
         const { recipe_id } = req.body;
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
 
         const existing = await pgclient.query(
             "SELECT * FROM favorites WHERE user_id = $1 AND recipe_id = $2",
@@ -64,7 +51,7 @@ router.post("/", async (req, res) => {
 router.delete("/", async (req, res) => {
     try {
         const { recipe_id } = req.body;
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
 
         const result = await pgclient.query(
             "DELETE FROM favorites WHERE user_id = $1 AND recipe_id = $2",

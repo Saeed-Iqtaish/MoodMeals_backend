@@ -1,79 +1,19 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const router = express.Router();
-
-router.post("/profile", async (req, res) => {
-    try {
-        const auth0Id = req.user.sub;
-        
-        const email = req.user.email || req.user['https://api.moodmeals.com/email'] || null;
-        const name = req.user.name || req.user['https://api.moodmeals.com/name'] || req.user.nickname || null;
-        
-        let username;
-        if (name) {
-            username = name;
-        } else if (email) {
-            username = email.split('@')[0];
-        } else {
-            username = `user_${auth0Id.split('|')[1] || auth0Id}`;
-        }
-        
-        console.log('Creating/getting profile for Auth0 user:', { 
-            auth0Id, 
-            email: email || 'not provided', 
-            username,
-            rawUser: req.user 
-        });
-        
-        const existingUser = await pgclient.query(
-            'SELECT * FROM "user" WHERE auth0_id = $1',
-            [auth0Id]
-        );
-
-        if (existingUser.rows.length > 0) {
-            const updatedUser = await pgclient.query(
-                'UPDATE "user" SET username = $1, email = $2 WHERE auth0_id = $3 RETURNING *',
-                [username, email, auth0Id]
-            );
-            
-            res.json({
-                message: "User profile retrieved",
-                user: updatedUser.rows[0]
-            });
-        } else {
-            const newUser = await pgclient.query(
-                `INSERT INTO "user" (username, email, auth0_id, is_admin) 
-                 VALUES ($1, $2, $3, false) 
-                 RETURNING *`,
-                [username, email, auth0Id]
-            );
-            res.status(201).json({
-                message: "User created successfully",
-                user: newUser.rows[0]
-            });
-        }
-    } catch (error) {
-        console.error("Error managing user profile:", error);
-        res.status(500).json({ error: "Failed to manage user profile" });
-    }
-});
+const usersRouter = express.Router();
 
 //get current user profile
-router.get("/me", async (req, res) => {
+usersRouter.get("/me", async (req, res) => {
     try {
-        const auth0Id = req.user.sub;
-        
-        const user = await pgclient.query(
-            'SELECT * FROM "user" WHERE auth0_id = $1',
-            [auth0Id]
-        );
+        const user = req.user;
 
-        if (user.rows.length === 0) {
-            return res.status(404).json({ error: "User profile not found" });
-        }
-
-        res.json(user.rows[0]);
+        res.json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            isAdmin: user.is_admin
+        });
     } catch (error) {
         console.error("Error fetching user profile:", error);
         res.status(500).json({ error: "Failed to fetch user profile" });
@@ -81,37 +21,43 @@ router.get("/me", async (req, res) => {
 });
 
 //update current user profile
-router.get("/me", async (req, res) => {
+usersRouter.put("/me", async (req, res) => {
     try {
-        const auth0Id = req.user.sub;
-        
-        const user = await pgclient.query(
-            'SELECT id, username, email, auth0_id, is_admin FROM "user" WHERE auth0_id = $1',
-            [auth0Id]
+        const { username, email } = req.body;
+        const userId = req.user.id;
+
+        const updatedUser = await pgclient.query(
+            'UPDATE "user" SET username = $1, email = $2 WHERE id = $3 RETURNING id, username, email, is_admin',
+            [username, email, userId]
         );
 
-        if (user.rows.length === 0) {
-            return res.status(404).json({ error: "User profile not found" });
+        if (updatedUser.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
         }
 
-        const userData = user.rows[0];
+        const user = updatedUser.rows[0];
+        
         res.json({
-            id: userData.id,
-            username: userData.username,
-            email: userData.email,
-            auth0Id: userData.auth0_id,
-            isAdmin: userData.is_admin
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            isAdmin: user.is_admin
         });
     } catch (error) {
-        console.error("Error fetching user profile:", error);
-        res.status(500).json({ error: "Failed to fetch user profile" });
+        console.error("Error updating user profile:", error);
+        res.status(500).json({ error: "Failed to update user profile" });
     }
 });
 
 //admin route - get all users
-router.get("/", async (req, res) => {
+usersRouter.get("/", async (req, res) => {
     try {
-        const users = await pgclient.query('SELECT id, username, email, auth0_id, is_admin FROM "user" ORDER BY id');
+        // Check if user is admin
+        if (!req.user.is_admin) {
+            return res.status(403).json({ error: "Admin access required" });
+        }
+
+        const users = await pgclient.query('SELECT id, username, email, is_admin FROM "user" ORDER BY id');
         res.json(users.rows);
     } catch (error) {
         console.error("Error fetching users:", error);
@@ -119,4 +65,4 @@ router.get("/", async (req, res) => {
     }
 });
 
-export default router;
+export { usersRouter };

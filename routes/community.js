@@ -1,26 +1,9 @@
 import express from "express"
 import pgclient from "../db.js";
 import multer from "multer";
-import { checkJwt, extractUser } from '../middleware/auth0.js';
+import { checkJwt, extractUser, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
-
-async function getUserIdFromAuth0(auth0Id) {
-    if (!auth0Id) {
-        throw new Error("Auth0 ID is required");
-    }
-    
-    const userResult = await pgclient.query(
-        'SELECT id FROM "user" WHERE auth0_id = $1',
-        [auth0Id]
-    );
-    
-    if (userResult.rows.length === 0) {
-        throw new Error("User not found");
-    }
-    
-    return userResult.rows[0].id;
-}
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -37,7 +20,7 @@ const upload = multer({
     }
 });
 
-//get all approved community recipes
+//get all approved community recipes (public)
 router.get("/", async (req, res) => {
     try {
         console.log('📖 GET /api/community - Public route accessed');
@@ -58,7 +41,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-//get a specific recipe
+//get a specific recipe (public)
 router.get("/:id", async (req, res) => {
     try {
         const recipeQuery = await pgclient.query(
@@ -98,7 +81,7 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-//get specific recipe image
+//get specific recipe image (public)
 router.get("/:id/image", async (req, res) => {
     try {
         const result = await pgclient.query(
@@ -130,35 +113,8 @@ router.get("/:id/image", async (req, res) => {
     }
 });
 
-//create a community recipe
-router.post("/", (req, res, next) => {
-    console.log('🔒 POST /api/community - Protected route accessed');
-    console.log('🔍 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
-    
-    checkJwt(req, res, (err) => {
-        if (err) {
-            console.log('❌ JWT verification failed:', err.message);
-            return res.status(401).json({
-                error: "Authentication failed",
-                message: err.message
-            });
-        }
-        
-        console.log('JWT verified for recipe creation');
-        extractUser(req, res, (err) => {
-            if (err) {
-                console.log('User extraction failed:', err.message);
-                return res.status(500).json({
-                    error: "User extraction failed",
-                    message: err.message
-                });
-            }
-            
-            console.log('User extracted for recipe creation:', req.user?.sub);
-            next();
-        });
-    });
-}, upload.single("image"), async (req, res) => {
+//create a community recipe (protected)
+router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
 
     try {
@@ -166,13 +122,11 @@ router.post("/", (req, res, next) => {
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
         
-        console.log('🍳 Creating recipe with user:', req.user.sub);
+        console.log('🍳 Creating recipe with user:', req.user.id);
         console.log('📝 Recipe title:', title);
         console.log('🖼️ Has image:', !!imageData);
         
-        const userId = await getUserIdFromAuth0(req.user.sub);
-        
-        console.log('User ID from DB:', userId, 'Type:', typeof userId);
+        const userId = req.user.id;
 
         if (!title || !title.trim()) {
             return res.status(400).json({ error: "Title is required" });
@@ -251,7 +205,7 @@ router.post("/", (req, res, next) => {
     }
 });
 
-//update a community recipe
+//update a community recipe (protected)
 router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
     try {
@@ -313,7 +267,7 @@ router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, re
     }
 });
 
-//delete a community recipe
+//delete a community recipe (protected)
 router.delete("/:id", checkJwt, extractUser, async (req, res) => {
     try {
         const recipe = await pgclient.query(

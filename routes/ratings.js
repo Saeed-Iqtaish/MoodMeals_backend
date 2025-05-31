@@ -1,23 +1,10 @@
 import express from "express";
 import pgclient from "../db.js";
 
-const router = express.Router();
-
-async function getUserIdFromAuth0(auth0Id) {
-    const userResult = await pgclient.query(
-        'SELECT id FROM "user" WHERE auth0_id = $1',
-        [auth0Id]
-    );
-    
-    if (userResult.rows.length === 0) {
-        throw new Error("User not found");
-    }
-    
-    return userResult.rows[0].id;
-}
+const ratingsRouter = express.Router();
 
 //get ratings for a recipe
-router.get("/recipe/:recipeId", async (req, res) => {
+ratingsRouter.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
         
@@ -38,10 +25,10 @@ router.get("/recipe/:recipeId", async (req, res) => {
 });
 
 //add or update rating
-router.post("/", async (req, res) => {
+ratingsRouter.post("/", async (req, res) => {
     try {
         const { recipe_id, rating } = req.body;
-        const userId = await getUserIdFromAuth0(req.user.sub);
+        const userId = req.user.id;
 
         if (rating < 1 || rating > 5) {
             return res.status(400).json({ error: "Rating must be between 1 and 5" });
@@ -63,4 +50,4 @@ router.post("/", async (req, res) => {
     }
 });
 
-export default router;
+export { ratingsRouter };
