@@ -20,7 +20,6 @@ const upload = multer({
     }
 });
 
-//get all approved community recipes (public)
 router.get("/", async (req, res) => {
     try {
         console.log('📖 GET /api/community - Public route accessed');
@@ -41,7 +40,6 @@ router.get("/", async (req, res) => {
     }
 });
 
-//get a specific recipe (public)
 router.get("/:id", async (req, res) => {
     try {
         const recipeQuery = await pgclient.query(
@@ -81,7 +79,6 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-//get specific recipe image (public)
 router.get("/:id/image", async (req, res) => {
     try {
         const result = await pgclient.query(
@@ -113,7 +110,6 @@ router.get("/:id/image", async (req, res) => {
     }
 });
 
-//create a community recipe (protected)
 router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
 
@@ -130,7 +126,6 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
         
         const userId = req.user.id;
 
-        // Validation
         if (!title || !title.trim()) {
             return res.status(400).json({ error: "Title is required" });
         }
@@ -167,7 +162,6 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 
         console.log('Recipe inserted with ID:', recipeId);
 
-        //insert ingredients
         for (const ingredient of ingredients) {
             if (ingredient && ingredient.trim()) {
                 await client.query(
@@ -177,7 +171,6 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
             }
         }
 
-        //insert instructions
         let stepNumber = 1;
         for (const step of instructions) {
             if (step && step.trim()) {
@@ -216,7 +209,6 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
     }
 });
 
-//update a community recipe (protected)
 router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
     try {
@@ -282,7 +274,6 @@ router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, re
     }
 });
 
-//delete a community recipe (protected)
 router.delete("/:id", checkJwt, extractUser, async (req, res) => {
     try {
         const recipe = await pgclient.query(
@@ -308,7 +299,6 @@ router.delete("/:id", checkJwt, extractUser, async (req, res) => {
     }
 });
 
-//get all pending recipes (admin only)
 router.get("/admin/pending", checkJwt, extractUser, requireAdmin, async (req, res) => {
     try {
         const recipes = await pgclient.query(
@@ -325,7 +315,6 @@ router.get("/admin/pending", checkJwt, extractUser, requireAdmin, async (req, re
     }
 });
 
-//approve/reject recipe (admin only)
 router.patch("/:id/approval", checkJwt, extractUser, requireAdmin, async (req, res) => {
     try {
         const { approved } = req.body;
@@ -346,6 +335,123 @@ router.patch("/:id/approval", checkJwt, extractUser, requireAdmin, async (req, r
             message: approved ? "Recipe approved" : "Recipe rejected",
             recipe: result.rows[0]
         });
+    } catch (error) {
+        console.error("Error updating recipe approval:", error);
+        res.status(500).json({ error: "Failed to update recipe approval" });
+    }
+});
+
+router.get("/admin/recipe/:id", checkJwt, extractUser, requireAdmin, async (req, res) => {
+    try {
+        console.log(`Admin fetching pending recipe details for ID: ${req.params.id}`);
+        
+        const recipeQuery = await pgclient.query(
+            `SELECT cr.*, u.username as created_by_username 
+             FROM community_recipes cr 
+             LEFT JOIN "user" u ON cr.created_by = u.id 
+             WHERE cr.id = $1`,
+            [req.params.id]
+        );
+        
+        if (recipeQuery.rows.length === 0) {
+            return res.status(404).json({ message: "Recipe not found" });
+        }
+
+        const recipe = recipeQuery.rows[0];
+
+        const ingredientsQuery = await pgclient.query(
+            "SELECT ingredient FROM ingredients WHERE recipe_id = $1 ORDER BY id",
+            [req.params.id]
+        );
+
+        const instructionsQuery = await pgclient.query(
+            "SELECT step_number, instruction FROM instructions WHERE recipe_id = $1 ORDER BY step_number",
+            [req.params.id]
+        );
+
+        recipe.ingredients = ingredientsQuery.rows;
+        recipe.instructions = instructionsQuery.rows;
+
+        console.log(`Admin recipe details fetched successfully for ID: ${req.params.id}`);
+        res.json(recipe);
+    } catch (error) {
+        console.error("Error fetching admin recipe details:", error);
+        res.status(500).json({
+            error: "Failed to fetch recipe details",
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+router.get("/admin/recipe/:id/image", checkJwt, extractUser, requireAdmin, async (req, res) => {
+    try {
+        console.log(`Admin fetching recipe image for ID: ${req.params.id}`);
+        
+        const result = await pgclient.query(
+            "SELECT image_data, image_type FROM community_recipes WHERE id = $1",
+            [req.params.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Recipe not found" });
+        }
+
+        const recipe = result.rows[0];
+        
+        if (!recipe.image_data) {
+            return res.status(404).json({ message: "No image available" });
+        }
+
+        const mimeType = recipe.image_type || 'image/jpeg';
+        
+        res.set("Content-Type", mimeType);
+        res.send(recipe.image_data);
+
+    } catch (error) {
+        console.error("Error fetching admin recipe image:", error);
+        res.status(500).json({
+            error: "Failed to fetch image",
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+router.patch("/:id/approval", checkJwt, extractUser, requireAdmin, async (req, res) => {
+    try {
+        const { approved } = req.body;
+        
+        if (approved === false) {
+            const result = await pgclient.query(
+                `DELETE FROM community_recipes WHERE id = $1 RETURNING *`,
+                [req.params.id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ message: "Recipe not found" });
+            }
+
+            res.json({
+                message: "Recipe rejected and deleted",
+                recipe: result.rows[0]
+            });
+        } else {
+            const result = await pgclient.query(
+                `UPDATE community_recipes 
+                 SET approved = $1, updated_at = NOW() 
+                 WHERE id = $2 
+                 RETURNING *`,
+                [approved, req.params.id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ message: "Recipe not found" });
+            }
+
+            res.json({
+                message: "Recipe approved",
+                recipe: result.rows[0]
+            });
+        }
     } catch (error) {
         console.error("Error updating recipe approval:", error);
         res.status(500).json({ error: "Failed to update recipe approval" });

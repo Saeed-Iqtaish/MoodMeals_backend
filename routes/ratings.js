@@ -3,7 +3,6 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-//get ratings for a recipe
 router.get("/recipe/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
@@ -24,7 +23,6 @@ router.get("/recipe/:recipeId", async (req, res) => {
     }
 });
 
-//add or update rating
 router.post("/", async (req, res) => {
     try {
         const { recipe_id, rating } = req.body;

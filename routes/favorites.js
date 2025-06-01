@@ -3,7 +3,6 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-// Get all favorites for authenticated user
 router.get("/", async (req, res) => {
     try {
         const userId = req.user.id;
@@ -20,24 +19,20 @@ router.get("/", async (req, res) => {
     }
 });
 
-// Add a recipe to favorites
 router.post("/", async (req, res) => {
     try {
         const { recipe_id, is_community = false } = req.body;
         const userId = req.user.id;
 
-        // Validate input
         if (!recipe_id) {
             return res.status(400).json({ error: "Recipe ID is required" });
         }
 
-        // Ensure recipe_id is a positive number
         const recipeIdNum = parseInt(recipe_id);
         if (isNaN(recipeIdNum) || recipeIdNum <= 0) {
             return res.status(400).json({ error: "Invalid recipe ID" });
         }
 
-        // Check if already in favorites
         const existing = await pgclient.query(
             "SELECT * FROM favorites WHERE user_id = $1 AND recipe_id = $2 AND is_community = $3",
             [userId, recipeIdNum, is_community]
@@ -47,7 +42,6 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ error: "Recipe already in favorites" });
         }
 
-        // For community recipes, verify the recipe exists and is approved
         if (is_community) {
             const communityRecipe = await pgclient.query(
                 "SELECT id FROM community_recipes WHERE id = $1 AND approved = true",
@@ -60,10 +54,8 @@ router.post("/", async (req, res) => {
                 });
             }
         }
-        // Note: For API recipes (is_community = false), we don't validate the recipe_id
-        // since it comes from the external Spoonacular API
 
-        // Add to favorites
+
         await pgclient.query(
             "INSERT INTO favorites (user_id, recipe_id, is_community) VALUES ($1, $2, $3)",
             [userId, recipeIdNum, is_community]
@@ -79,12 +71,11 @@ router.post("/", async (req, res) => {
     } catch (error) {
         console.error("Error adding to favorites:", error);
         
-        // Handle specific database errors
-        if (error.code === '23505') { // Unique constraint violation
+        if (error.code === '23505') {
             return res.status(400).json({ error: "Recipe already in favorites" });
         }
         
-        if (error.code === '23503') { // Foreign key constraint violation
+        if (error.code === '23503') {
             return res.status(400).json({ 
                 error: "Database constraint error - please contact support",
                 details: "The foreign key constraint should be removed for API recipes"
@@ -98,13 +89,11 @@ router.post("/", async (req, res) => {
     }
 });
 
-// Remove a recipe from favorites
 router.delete("/", async (req, res) => {
     try {
         const { recipe_id, is_community = false } = req.body;
         const userId = req.user.id;
 
-        // Validate input
         if (!recipe_id) {
             return res.status(400).json({ error: "Recipe ID is required" });
         }
@@ -139,20 +128,17 @@ router.delete("/", async (req, res) => {
     }
 });
 
-// Check if a specific recipe is favorited
 router.get("/check/:recipeId", async (req, res) => {
     try {
         const { recipeId } = req.params;
         const { is_community = 'false' } = req.query;
         const userId = req.user.id;
         
-        // Validate input
         const recipeIdNum = parseInt(recipeId);
         if (isNaN(recipeIdNum) || recipeIdNum <= 0) {
             return res.status(400).json({ error: "Invalid recipe ID" });
         }
 
-        // Convert string to boolean
         const isCommunityBool = is_community === 'true';
 
         const favorite = await pgclient.query(

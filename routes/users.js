@@ -3,12 +3,10 @@ import pgclient from "../db.js";
 
 const router = express.Router();
 
-//get current user profile
 router.get("/me", async (req, res) => {
     try {
         const user = req.user;
 
-        // Fetch user preferences/allergies
         const preferencesResult = await pgclient.query(
             'SELECT preference FROM user_preference WHERE user_id = $1',
             [user.id]
@@ -29,7 +27,6 @@ router.get("/me", async (req, res) => {
     }
 });
 
-//update current user profile
 router.put("/me", async (req, res) => {
     const client = await pgclient.connect();
     
@@ -39,7 +36,6 @@ router.put("/me", async (req, res) => {
 
         await client.query("BEGIN");
 
-        // Update basic user info
         const updatedUser = await client.query(
             'UPDATE "user" SET username = $1, email = $2 WHERE id = $3 RETURNING id, username, email, is_admin',
             [username, email, userId]
@@ -50,13 +46,11 @@ router.put("/me", async (req, res) => {
             return res.status(404).json({ error: "User not found" });
         }
 
-        // Clear existing allergies/preferences
         await client.query(
             'DELETE FROM user_preference WHERE user_id = $1',
             [userId]
         );
 
-        // Insert new allergies/preferences
         for (const allergy of allergies) {
             if (allergy && allergy.trim()) {
                 await client.query(
@@ -86,10 +80,8 @@ router.put("/me", async (req, res) => {
     }
 });
 
-//admin route - get all users
 router.get("/", async (req, res) => {
     try {
-        // Check if user is admin
         if (!req.user.is_admin) {
             return res.status(403).json({ error: "Admin access required" });
         }
@@ -105,8 +97,7 @@ router.get("/", async (req, res) => {
 router.get("/my-recipes", async (req, res) => {
     try {
         const userId = req.user.id;
-        
-        // Fetch user's community recipes
+
         const recipes = await pgclient.query(
             `SELECT cr.*, u.username as created_by_username 
              FROM community_recipes cr 

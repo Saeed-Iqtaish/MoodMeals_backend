@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pgclient from '../db.js';
 
-// Generate JWT token
 export const generateToken = (userId) => {
   return jwt.sign(
     { userId },
@@ -11,18 +10,15 @@ export const generateToken = (userId) => {
   );
 };
 
-// Hash password
 export const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
 };
 
-// Compare password
 export const comparePassword = async (password, hashedPassword) => {
   return bcrypt.compare(password, hashedPassword);
 };
 
-// Extract token from request
 const getTokenFromRequest = (req) => {
   const authHeader = req.headers.authorization;
   
@@ -33,7 +29,6 @@ const getTokenFromRequest = (req) => {
   return null;
 };
 
-// Check JWT middleware
 export const checkJwt = async (req, res, next) => {
   try {
     const token = getTokenFromRequest(req);
@@ -47,7 +42,6 @@ export const checkJwt = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     
-    // Get user from database
     const userResult = await pgclient.query(
       'SELECT id, username, email, is_admin FROM "user" WHERE id = $1',
       [decoded.userId]
@@ -87,7 +81,6 @@ export const checkJwt = async (req, res, next) => {
   }
 };
 
-// Extract user info (for logging)
 export const extractUser = (req, res, next) => {
   if (req.user) {
     console.log('Authenticated user:', {
@@ -100,7 +93,6 @@ export const extractUser = (req, res, next) => {
   next();
 };
 
-// Require admin middleware
 export const requireAdmin = async (req, res, next) => {
   try {
     if (!req.user.is_admin) {

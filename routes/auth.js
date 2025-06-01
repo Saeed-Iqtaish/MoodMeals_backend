@@ -4,12 +4,10 @@ import { hashPassword, comparePassword, generateToken } from "../middleware/auth
 
 const router = express.Router();
 
-// Register new user
 router.post("/signup", async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Validation
     if (!username || !email || !password) {
       return res.status(400).json({ 
         error: "All fields are required",
@@ -24,7 +22,6 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // Check if user already exists
     const existingUser = await pgclient.query(
       'SELECT id FROM "user" WHERE email = $1 OR username = $2',
       [email, username]
@@ -37,10 +34,8 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
     const newUser = await pgclient.query(
       `INSERT INTO "user" (username, email, password, is_admin) 
        VALUES ($1, $2, $3, false) 
@@ -70,12 +65,10 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-// Login user
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
     if (!email || !password) {
       return res.status(400).json({ 
         error: "All fields are required",
@@ -83,7 +76,6 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Find user
     const userResult = await pgclient.query(
       'SELECT id, username, email, password, is_admin FROM "user" WHERE email = $1',
       [email]
@@ -98,7 +90,6 @@ router.post("/login", async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Check password
     const isPasswordValid = await comparePassword(password, user.password);
     
     if (!isPasswordValid) {
@@ -108,7 +99,6 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Generate token
     const token = generateToken(user.id);
 
     res.json({
@@ -130,7 +120,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Get current user (protected route)
 router.get("/me", async (req, res) => {
   try {
     const token = req.headers.authorization?.substring(7);
