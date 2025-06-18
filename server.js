@@ -15,7 +15,7 @@ const server = express();
 dotenv.config();
 
 server.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: process.env.FRONTEND_URL,
   credentials: true
 }));
 
@@ -30,7 +30,7 @@ server.get("/api/health", (req, res) => {
 
 // Public routes
 server.use("/api/auth", authRoutes);
-server.use("/api/community", communityRoutes); // Community routes handle their own auth
+server.use("/api/community", communityRoutes);
 
 // Protected routes
 server.use("/api/favorites", checkJwt, extractUser, favoritesRoutes);

@@ -61,7 +61,7 @@ router.post("/", async (req, res) => {
             [userId, recipeIdNum, is_community]
         );
 
-        console.log(`✅ Recipe ${recipeIdNum} (${is_community ? 'community' : 'API'}) added to favorites for user ${userId}`);
+        console.log(`Recipe ${recipeIdNum} (${is_community ? 'community' : 'API'}) added to favorites for user ${userId}`);
 
         res.status(201).json({ 
             message: "Recipe added to favorites",
@@ -112,7 +112,7 @@ router.delete("/", async (req, res) => {
             return res.status(404).json({ error: "Favorite not found" });
         }
 
-        console.log(`✅ Recipe ${recipeIdNum} (${is_community ? 'community' : 'API'}) removed from favorites for user ${userId}`);
+        console.log(`Recipe ${recipeIdNum} (${is_community ? 'community' : 'API'}) removed from favorites for user ${userId}`);
 
         res.json({ 
             message: "Recipe removed from favorites",

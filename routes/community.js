@@ -114,15 +114,9 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
     const client = await pgclient.connect();
 
     try {
-        const { title, prep_time, servings } = req.body;
+        const { title, prep_time, servings, mood } = req.body;
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
-        
-        console.log('🍳 Creating recipe with user:', req.user.id);
-        console.log('📝 Recipe title:', title);
-        console.log('⏱️ Prep time:', prep_time);
-        console.log('🍽️ Servings:', servings);
-        console.log('🖼️ Has image:', !!imageData);
         
         const userId = req.user.id;
 
@@ -136,6 +130,10 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 
         if (!servings || servings <= 0) {
             return res.status(400).json({ error: "Valid number of servings is required" });
+        }
+
+        if (!mood || !['Happy', 'Cozy', 'Relaxed', 'Energetic'].includes(mood)) {
+            return res.status(400).json({ error: "Valid mood is required (Happy, Cozy, Relaxed, or Energetic)" });
         }
 
         const ingredients = JSON.parse(req.body.ingredients || "[]");
@@ -152,10 +150,10 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 
         const recipeResult = await client.query(
             `INSERT INTO community_recipes 
-            (title, prep_time, servings, image_data, image_type, created_by, approved, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
+            (title, prep_time, servings, mood, image_data, image_type, created_by, approved, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW(), NOW())
             RETURNING id`,
-            [title.trim(), parseInt(prep_time), parseInt(servings), imageData, imageType, userId]
+            [title.trim(), parseInt(prep_time), parseInt(servings), mood, imageData, imageType, userId]
         );
 
         const recipeId = recipeResult.rows[0].id;
@@ -212,27 +210,34 @@ router.post("/", checkJwt, extractUser, upload.single("image"), async (req, res)
 router.put("/:id", checkJwt, extractUser, upload.single("image"), async (req, res) => {
     const client = await pgclient.connect();
     try {
-        const { title, prep_time, servings } = req.body;
+        const { title, prep_time, servings, mood } = req.body;
         const imageData = req.file?.buffer;
         const imageType = req.file?.mimetype;
         const ingredients = JSON.parse(req.body.ingredients || "[]");
         const instructions = JSON.parse(req.body.instructions || "[]");
+
+        console.log('🔄 Updating recipe with mood:', mood);
+
+        // Validate mood
+        if (!mood || !['Happy', 'Cozy', 'Relaxed', 'Energetic'].includes(mood)) {
+            return res.status(400).json({ error: "Valid mood is required (Happy, Cozy, Relaxed, or Energetic)" });
+        }
 
         await client.query("BEGIN");
 
         if (imageData) {
             await client.query(
                 `UPDATE community_recipes 
-                 SET title = $1, prep_time = $2, servings = $3, image_data = $4, image_type = $5, updated_at = NOW() 
-                 WHERE id = $6`,
-                [title, parseInt(prep_time), parseInt(servings), imageData, imageType, req.params.id]
+                 SET title = $1, prep_time = $2, servings = $3, mood = $4, image_data = $5, image_type = $6, updated_at = NOW() 
+                 WHERE id = $7`,
+                [title, parseInt(prep_time), parseInt(servings), mood, imageData, imageType, req.params.id]
             );
         } else {
             await client.query(
                 `UPDATE community_recipes 
-                 SET title = $1, prep_time = $2, servings = $3, updated_at = NOW() 
-                 WHERE id = $4`,
-                [title, parseInt(prep_time), parseInt(servings), req.params.id]
+                 SET title = $1, prep_time = $2, servings = $3, mood = $4, updated_at = NOW() 
+                 WHERE id = $5`,
+                [title, parseInt(prep_time), parseInt(servings), mood, req.params.id]
             );
         }
 
