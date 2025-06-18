@@ -129,7 +129,7 @@ router.get("/me", async (req, res) => {
     }
 
     const jwt = await import('jsonwebtoken');
-    const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
     
     const userResult = await pgclient.query(
       'SELECT id, username, email, is_admin FROM "user" WHERE id = $1',
