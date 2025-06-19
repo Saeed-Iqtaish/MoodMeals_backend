@@ -5,8 +5,8 @@ import pgclient from '../db.js';
 export const generateToken = (userId) => {
   return jwt.sign(
     { userId },
-    process.env.JWT_SECRET || 'your-secret-key',
-    { expiresIn: '7d' }
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
   );
 };
 
@@ -40,7 +40,7 @@ export const checkJwt = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     const userResult = await pgclient.query(
       'SELECT id, username, email, is_admin FROM "user" WHERE id = $1',

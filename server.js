@@ -25,6 +25,8 @@ const corsOptions = {
     process.env.FRONTEND_URL,
     'http://localhost:3000',
     'http://localhost:5173',
+    'https://moodmealsfrontend-production.up.railway.app',
+    'https://moodmealsbackend-production.up.railway.app',
     /\.railway\.app$/
   ].filter(Boolean),
   credentials: true,
